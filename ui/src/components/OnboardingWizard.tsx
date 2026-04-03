@@ -1305,7 +1305,7 @@ export function OnboardingWizard() {
                           setWorkspaceError(null);
                         }}
                       />
-                      <ChoosePathButton />
+                      <ChoosePathButton onPick={(p) => { setWorkspacePath(p); setWorkspaceError(null); }} />
                     </div>
                     {workspaceError && (
                       <p className="text-xs text-destructive mt-1">{workspaceError}</p>
