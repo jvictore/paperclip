@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Apple, Monitor, Terminal } from "lucide-react";
 import {
   Dialog,
@@ -120,10 +120,26 @@ export function PathInstructionsModal({
 }
 
 /**
+ * Programmatically set a React-controlled input's value by going through the
+ * native setter so React's synthetic onChange fires.
+ */
+function setInputValue(input: HTMLInputElement, value: string) {
+  const setter = Object.getOwnPropertyDescriptor(
+    HTMLInputElement.prototype,
+    "value",
+  )?.set;
+  setter?.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+/**
  * Small "Choose" button that opens a native OS folder picker when the server
  * supports it, falling back to the PathInstructionsModal otherwise.
  *
  * When `onPick` is provided, the selected path is forwarded to the caller.
+ * When omitted, the component finds the nearest sibling `<input>` inside the
+ * same parent container and sets its value automatically.
  */
 export function ChoosePathButton({
   className,
@@ -134,24 +150,36 @@ export function ChoosePathButton({
 }) {
   const [open, setOpen] = useState(false);
   const [picking, setPicking] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  function applyPath(path: string) {
+    if (onPick) {
+      onPick(path);
+      return;
+    }
+    // Auto-fill the nearest sibling input in the same container
+    const input = buttonRef.current
+      ?.parentElement?.querySelector("input") as HTMLInputElement | null;
+    if (input) {
+      setInputValue(input, path);
+    }
+  }
 
   async function handleClick() {
-    if (onPick) {
-      try {
-        setPicking(true);
-        const res = await fetch("/api/folder-picker", { method: "POST" });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.path) {
-            onPick(data.path);
-            return;
-          }
+    try {
+      setPicking(true);
+      const res = await fetch("/api/folder-picker", { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.path) {
+          applyPath(data.path);
+          return;
         }
-      } catch {
-        // Server doesn't support native picker — fall through to modal
-      } finally {
-        setPicking(false);
       }
+    } catch {
+      // Server doesn't support native picker — fall through to modal
+    } finally {
+      setPicking(false);
     }
     setOpen(true);
   }
@@ -159,6 +187,7 @@ export function ChoosePathButton({
   return (
     <>
       <button
+        ref={buttonRef}
         type="button"
         disabled={picking}
         className={cn(
