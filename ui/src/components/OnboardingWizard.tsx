@@ -551,7 +551,14 @@ export function OnboardingWizard() {
   }
 
   async function handleLaunch() {
-    if (!createdCompanyId || !createdAgentId) return;
+    if (!createdCompanyId || !createdAgentId) {
+      setError(
+        !createdCompanyId
+          ? "Please create a company first (Step 1)."
+          : "Please create an agent first (Step 2)."
+      );
+      return;
+    }
 
     const localPath = workspacePath.trim();
     if (localPath && !(localPath.startsWith("/") || /^[A-Za-z]:[\\/]/.test(localPath))) {
@@ -585,10 +592,16 @@ export function OnboardingWizard() {
 
       if (localPath && projectId) {
         const folderName = localPath.split(/[\\/]/).filter(Boolean).pop() ?? "workspace";
-        await projectsApi.createWorkspace(projectId, {
-          name: folderName,
-          cwd: localPath,
-        });
+        try {
+          await projectsApi.createWorkspace(projectId, {
+            name: folderName,
+            cwd: localPath,
+          });
+        } catch (wsErr) {
+          // Non-fatal: workspace creation may fail if it already exists,
+          // we still want to proceed with issue creation.
+          console.warn("Workspace creation failed:", wsErr);
+        }
       }
 
       let issueRef = createdIssueRef;
