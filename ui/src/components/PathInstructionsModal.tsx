@@ -120,22 +120,54 @@ export function PathInstructionsModal({
 }
 
 /**
- * Small "Choose" button that opens the PathInstructionsModal.
- * Drop-in replacement for the old showDirectoryPicker buttons.
+ * Small "Choose" button that opens a native OS folder picker when the server
+ * supports it, falling back to the PathInstructionsModal otherwise.
+ *
+ * When `onPick` is provided, the selected path is forwarded to the caller.
  */
-export function ChoosePathButton({ className }: { className?: string }) {
+export function ChoosePathButton({
+  className,
+  onPick,
+}: {
+  className?: string;
+  onPick?: (path: string) => void;
+}) {
   const [open, setOpen] = useState(false);
+  const [picking, setPicking] = useState(false);
+
+  async function handleClick() {
+    if (onPick) {
+      try {
+        setPicking(true);
+        const res = await fetch("/api/folder-picker", { method: "POST" });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.path) {
+            onPick(data.path);
+            return;
+          }
+        }
+      } catch {
+        // Server doesn't support native picker — fall through to modal
+      } finally {
+        setPicking(false);
+      }
+    }
+    setOpen(true);
+  }
+
   return (
     <>
       <button
         type="button"
+        disabled={picking}
         className={cn(
           "inline-flex items-center rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent/50 transition-colors shrink-0",
           className,
         )}
-        onClick={() => setOpen(true)}
+        onClick={handleClick}
       >
-        Choose
+        {picking ? "Opening…" : "Choose"}
       </button>
       <PathInstructionsModal open={open} onOpenChange={setOpen} />
     </>
